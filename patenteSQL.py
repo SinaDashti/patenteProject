@@ -32,15 +32,21 @@ main_url = "https://www.patentati.it"
 # in capitolo_list table.
 # Before storing the information the capitolo_list table must be created.
 ################################################################################
+
+def name_correct(name):
+    return name.replace(',','').replace(' ','_').replace('\'','_').\
+    replace('(','').replace(')','').replace(':','').replace('km/h','km')[:50]
+
 r = requests.get('https://www.patentati.it/quiz-patente-b/lista-domande.php')
 section_dic = dict()
 domande = BeautifulSoup(r.text, 'lxml')
 for lista_domande in domande.find_all('a', class_='box')[1:]:
     section_dic[
-        lista_domande.text.strip()] = main_url + lista_domande.get('href')
+        name_correct(lista_domande.text.strip())] = main_url + lista_domande.get('href')
 Q = "CREATE TABLE capitolo_list \
     (capitolo VARCHAR (255), url_capitolo VARCHAR (255), \
     capitolo_id INTEGER AUTO_INCREMENT PRIMARY KEY)"
+
 mycursor.execute(Q)
 print('Creating tables')
 print("--- %s seconds ---" % (time.time() - start_time))
@@ -77,8 +83,7 @@ for (topic, section) in myresult:
     # In the topic name the are a lot of replace method, because some charecters
     # make problem for table name in SQL, and also it is sliced at the end.
 
-    table_name = topic.replace(',', '').replace(' ', '_').replace('\'',
-            '_').replace('(', '').replace(')', '').replace(':', '')[:50]
+    table_name = name_correct(topic)
 #
 #     # createsqltable = "DROP TABLE IF EXISTS " + table_name
 #
@@ -137,8 +142,7 @@ for topicTable in list_of_topics_table[1:]:
         tableValues = []#
         ###
         for tr in table_row:
-            table_name = rows[0].replace(',', '').replace(' ', '_').replace('\'',
-                        '_').replace('(', '').replace(')', '').replace(':', '').replace('km/h','km')[:50]
+            table_name = name_correct(rows[0])
             question = tr.find_all('td', class_ = 'domanda')#
             answer = tr.find_all('td', class_ = 'risp')#
             # domanda.append(question[0].text)
