@@ -12,10 +12,6 @@ mydb = mysql.connector.connect(
                                 host = "localhost",
                                 user = "root",
                                 passwd = "mysqlmysql",
-
-                                # The below line must be a comment if
-                                # the database already exists.
-
                                 database = "patentedb"
                                 )
 
@@ -43,6 +39,7 @@ domande = BeautifulSoup(r.text, 'lxml')
 for lista_domande in domande.find_all('a', class_='box')[1:]:
     section_dic[
         name_correct(lista_domande.text.strip())] = main_url + lista_domande.get('href')
+
 Q = "CREATE TABLE capitolo_list \
     (capitolo VARCHAR (255), url_capitolo VARCHAR (255), \
     capitolo_id INTEGER AUTO_INCREMENT PRIMARY KEY)"
@@ -51,7 +48,7 @@ mycursor.execute(Q)
 print('Creating tables')
 print("--- %s seconds ---" % (time.time() - start_time))
 # inserting array of values inside tables
-#
+
 sqlformula = "INSERT INTO capitolo_list (capitolo, url_capitolo) VALUES (%s, %s)"
 capitoloValues = []
 for cap,url_cap in section_dic.items():
@@ -60,14 +57,15 @@ mycursor.executemany(sqlformula, capitoloValues)
 print('Inserting in capitoplo')
 print("--- %s seconds ---" % (time.time() - start_time))
 # Pay attention without committing we do not see the changes.
-
 mydb.commit()
+
 ################################################################################
 # At this stage, by using the first table in the patentedb, the required
 # information is queried from table. Then by looping through the chapter's url,
-# one table has created, in which all topic and their specific page url,
+# one table is created, in which all topic and their specific page url,
 # is mapped and stored.
 ################################################################################
+
 Q = "SELECT capitolo, url_capitolo FROM capitolo_list"
 mycursor.execute(Q)
 myresult = mycursor.fetchall()
@@ -75,6 +73,7 @@ myresult = mycursor.fetchall()
 # Looping at each chapter
 
 for (topic, section) in myresult:
+
     r = requests.get(section)
     domande = BeautifulSoup(r.text, 'lxml')
     list_argomenta = domande.find_all('a',
@@ -84,9 +83,7 @@ for (topic, section) in myresult:
     # make problem for table name in SQL, and also it is sliced at the end.
 
     table_name = name_correct(topic)
-#
-#     # createsqltable = "DROP TABLE IF EXISTS " + table_name
-#
+
     createsqltable = """CREATE TABLE """ + str(table_name) + ' (' \
         + 'topic_name VARCHAR (255), url_topic VARCHAR (255), ' \
         + 'topic_id INTEGER AUTO_INCREMENT PRIMARY KEY' \
@@ -101,20 +98,20 @@ for (topic, section) in myresult:
 
     tableValues = []
     for row in list_argomenta:
-        tableValues.append((row.text.strip(), main_url + row['href']))
+        tableValues.append((name_correct(row.text.strip()), main_url + row['href']))
     mycursor.executemany(sqlformula, tableValues)
     mydb.commit()
 
 print('Creating all question tables and inserting in them')
 print("--- %s seconds ---" % (time.time() - start_time))
+
 ################################################################################
-# At this stage, by using each table in the previous part, the question name and
-# link are queried from tables. Then by looping through the chapter's url,
-# one table has created, in which all topic and their specific page url,
-# is mapped and stored. MUST BE EDITED
+# At this stage, first we go inside each section table, except capitolo_list.
+# Then, we loop through sections, inside each section, there are different
+# arguments. Each argument, has a table, in which there could be figure,
+# questions and answers. So, we should open each argument and store these data.
 ################################################################################
 
-Q = "SELECT topic_name, url_topic from Segnali_di_pericolo"
 query_all_table_name = "SHOW TABLES"
 mycursor.execute(query_all_table_name)
 list_of_topics_table = mycursor.fetchall()
@@ -125,29 +122,27 @@ c3 = 'Risposta'
 
 
 for topicTable in list_of_topics_table[1:]:
+
+    # [1:] to pass capitolo_list
     query_topics_in_table = "SELECT topic_name, url_topic from " + topicTable[0]
     mycursor.execute(query_topics_in_table)
     list_of_topics_questions = mycursor.fetchall()
 
     for rows in list_of_topics_questions:
-        ###
+
         r = requests.get(rows[1])
         source = BeautifulSoup(r.text, "lxml")
         table = source.find('table')
         table_row =table.find_all('tr')[1:]
-        ###
-        figura = []#
-        # domanda = []
-        # risposta = []
-        tableValues = []#
-        ###
+
+        figura = []
+        tableValues = []
+
         for tr in table_row:
             table_name = name_correct(rows[0])
-            question = tr.find_all('td', class_ = 'domanda')#
-            answer = tr.find_all('td', class_ = 'risp')#
-            # domanda.append(question[0].text)
-            # risposta.append(answer[0].text.strip())
-            headers = source.find('thead').find_all('td')#
+            question = tr.find_all('td', class_ = 'domanda')
+            answer = tr.find_all('td', class_ = 'risp')
+            headers = source.find('thead').find_all('td')
 
             if len(headers) == 3:
                 if tr.img:
@@ -157,27 +152,24 @@ for topicTable in list_of_topics_table[1:]:
                     figura.append(figura[len(figura)-1])
                     tableValues.append((figura[len(figura)-1], question[0].text, answer[0].text.strip()))
                 else:
-                    # figura.append(None)
                     tableValues.append((None, question[0].text, answer[0].text.strip()))
             elif len(headers) == 2:
                 tableValues.append((question[0].text, answer[0].text.strip()))
 
         if len(headers) == 3:
-            # df = pd.DataFrame({c1:figura, c2:domanda, c3:risposta})
             try:
                 createsqltable = """CREATE TABLE """ + str(table_name) + ' (' \
                     + 'Figura VARCHAR (255), Domanda VARCHAR (500), Risposta CHAR,' \
                     + 'Domanda_id INTEGER AUTO_INCREMENT PRIMARY KEY' \
                     + ')'
-                # createsqltable = """DROP TABLE """ + str(table_name)
+
                 mycursor.execute(createsqltable)
                 mydb.commit()
-                # print(tabulate(df, headers = 'keys', tablefmt = 'psql', showindex = False))
 
                 sqlformula = """INSERT INTO """ + table_name \
                     + """ (Figura, Domanda, Risposta) VALUES (%s, %s, %s)"""
 
-                ##Loop inside each chapter
+                #Loop inside each chapter
 
                 mycursor.executemany(sqlformula, tableValues)
                 mydb.commit()
@@ -187,21 +179,19 @@ for topicTable in list_of_topics_table[1:]:
 
         elif len(headers) == 2:
             try:
-                # df = pd.DataFrame({c2:domanda, c3:risposta})
+
                 createsqltable = """CREATE TABLE """ + str(table_name) + ' (' \
                     + 'Domanda VARCHAR (500), Risposta CHAR,' \
                     + 'Domanda_id INTEGER AUTO_INCREMENT PRIMARY KEY' \
                     + ')'
 
-                # createsqltable = """DROP TABLE """ + str(table_name)
                 mycursor.execute(createsqltable)
                 mydb.commit()
-                # print(tabulate(df, headers = 'keys', tablefmt = 'psql', showindex = False))
 
                 sqlformula = """INSERT INTO """ + table_name \
                     + """ (Domanda, Risposta) VALUES (%s, %s)"""
 
-                ## Loop inside each chapter
+                # Loop inside each chapter
 
                 mycursor.executemany(sqlformula, tableValues)
                 mydb.commit()
