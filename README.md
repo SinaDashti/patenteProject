@@ -2,7 +2,7 @@
 
 ### The goal of this project is to simulate the Italian driving license exam with Python.  
 
-The meaterials (questions, answers and images) are automatically stored in a SQL database.
+The materials (questions, answers and images) are automatically stored in a SQL database.
 I am not sure the questions and answers are completely true or updated. I just choosed a website for
 extracting the required raw data.
 
